@@ -41,7 +41,6 @@ async def generate_frames(camera_id: int, request: Request):
                     b"\r\n"
             )
 
-            # 4. Use non-blocking async sleep to let other viewers process frames
             await asyncio.sleep(0.033)  # Targets ~30 FPS cleanly
 
     finally:

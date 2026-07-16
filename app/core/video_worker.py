@@ -28,6 +28,13 @@ class VideoWorker:
         self.viewer_count = 0
         self.viewer_lock = threading.Lock()
 
+        # RecordingWorker
+        self.frame_consumers = []
+        self.consumer_lock = threading.Lock()
+
+        self.frame_counter = 0
+        self.last_fps_time = time.time()
+
     def start(self):
         self.running = True
         self.thread = threading.Thread(
@@ -48,10 +55,16 @@ class VideoWorker:
             # Open RTSP connection
             with self.cap_lock:
 
+                print("Opening RTSP:", self.url)
 
                 self.cap = cv2.VideoCapture(
                     self.url,
                     cv2.CAP_FFMPEG,
+                )
+
+                print(
+                    "Opened:",
+                    self.cap.isOpened()
                 )
                 if self.cap:
                     self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
@@ -110,6 +123,18 @@ class VideoWorker:
 
                 # Process the clean frame (Resize & Encode ONCE)
                 frame = cv2.resize(frame, (1280, 720))
+                self.frame_counter += 1
+
+                now = time.time()
+
+                if now - self.last_fps_time >= 1:
+                    print(f"Camera {self.camera_id} incoming FPS: {self.frame_counter}")
+
+                    self.frame_counter = 0
+                    self.last_fps_time = now
+                self.notify_frame_consumers(
+                    frame
+                )
 
                 ret, jpg = cv2.imencode(
                     ".jpg",
@@ -162,6 +187,49 @@ class VideoWorker:
         with self.lock:
             self.frame = None
             self.jpeg = None
+
+        # Frame consumers
+    def add_frame_consumer(
+            self,
+            consumer
+    ):
+
+        with self.consumer_lock:
+            if consumer not in self.frame_consumers:
+                self.frame_consumers.append(
+                    consumer
+                )
+
+    def remove_frame_consumer(
+            self,
+            consumer
+    ):
+
+        with self.consumer_lock:
+            if consumer in self.frame_consumers:
+                self.frame_consumers.remove(
+                    consumer
+                )
+
+    def notify_frame_consumers(
+            self,
+            frame
+    ):
+
+        with self.consumer_lock:
+            consumers = list(
+                self.frame_consumers
+            )
+
+        for consumer in consumers:
+            print(
+                "Sending frame to recorder:",
+                self.camera_id,
+                frame.shape
+            )
+            consumer.write_frame(
+                frame
+            )
 
     # Viewer count
 

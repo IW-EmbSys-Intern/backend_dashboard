@@ -1,7 +1,7 @@
 from app.models.camera import Camera
 from app.core.video_worker import VideoWorker
 import threading
-
+from app.core.recording_manager import recording_manager
 
 class CameraManager:
 
@@ -112,6 +112,11 @@ class CameraManager:
                 del self.url_map[camera.url]
 
         # Stop worker outside lock
+        recording_manager.stop_recording(
+            camera_id,
+            camera.worker
+        )
+
         camera.worker.stop()
 
         print(
