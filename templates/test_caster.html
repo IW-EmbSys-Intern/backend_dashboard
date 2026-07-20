@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Indocaster Production Dashboard Test</title>
+</head>
+<body style="font-family: sans-serif; padding: 40px; background: #f4f5f7; color: #333;">
+
+    <h2>Indocaster Integrated Screen Caster Dashboard</h2>
+    <p>Type your target AWS RTSP URL below to start the screen share delivery pipeline.</p>
+
+    <label>Target Destination RTSP URL:</label><br>
+    <input type="text" id="rtspUrl" value="rtsp://13.201.184.38:8554/str1" style="width: 450px; padding: 10px; margin-top: 5px; font-size: 14px;"><br><br>
+
+    <button id="startBtn" onclick="startWebcast()" style="padding: 12px 24px; background: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; border-radius: 4px;">Start Streaming</button>
+    <button id="stopBtn" onclick="stopWebcast()" style="padding: 12px 24px; background: #dc3545; color: white; border: none; font-weight: bold; cursor: pointer; border-radius: 4px;" disabled>Stop Streaming</button>
+
+    <h3 id="status" style="margin-top: 20px; color: #666;">Status: Offline / Idle</h3>
+
+    <script>
+        // Adjust these to match your deployed location (localhost or AWS public IP)
+        const HOST_IP = window.location.host;
+        const HTTP_BASE = `${window.location.protocol}//${HOST_IP}`;
+        const WS_BASE = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${HOST_IP}`;
+
+        let currentSessionId = null;
+        let streamingSocket = null;
+        let screenCaptureStream = null;
+        let dataRecorder = null;
+
+        async function startWebcast() {
+            const rtspTarget = document.getElementById("rtspUrl").value;
+            document.getElementById("status").innerText = "Status: Provisioning API components...";
+
+            try {
+                // 1. Initialize the session over HTTP REST API
+                const res = await fetch(`${HTTP_BASE}/api/publisher/start-streaming`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ rtsp_url: rtspTarget })
+                });
+                const payload = await res.json();
+
+                if (payload.status !== "success") throw new Error("Backend setup rejected session authorization.");
+                currentSessionId = payload.session_id;
+
+                // 2. Prompt browser layout interface to capture screen selection
+                screenCaptureStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { width: 1280, height: 720, frameRate: 30 },
+                    audio: true
+                });
+
+                // 3. Connect the live binary WebSocket channel
+                streamingSocket = new WebSocket(`${WS_BASE}/api/publisher/ws/${currentSessionId}`);
+                streamingSocket.binaryType = 'arraybuffer';
+
+                streamingSocket.onopen = () => {
+                    document.getElementById("status").innerText = "Status: LIVE BROADCASTING ACTIVE 🟢";
+                    document.getElementById("status").style.color = "green";
+                    document.getElementById("startBtn").disabled = true;
+                    document.getElementById("stopBtn").disabled = false;
+
+                    // 4. Fragment the stream capture live into regular WebM binary segments
+                    dataRecorder = new MediaRecorder(screenCaptureStream, { mimeType: 'video/webm; codecs=vp8' });
+
+                    dataRecorder.ondataavailable = async (event) => {
+                        if (event.data.size > 0 && streamingSocket.readyState === WebSocket.OPEN) {
+                            const bufferSlice = await event.data.arrayBuffer();
+                            streamingSocket.send(bufferSlice); // Throw data chunk over the socket wire
+                        }
+                    };
+
+                    dataRecorder.start(100); // Send data chunks every 100 milliseconds
+                };
+
+            } catch (err) {
+                document.getElementById("status").innerText = `Error: ${err.message}`;
+                document.getElementById("status").style.color = "red";
+                console.error(err);
+            }
+        }
+
+        async function stopWebcast() {
+            document.getElementById("status").innerText = "Status: Closing pipeline down...";
+            document.getElementById("status").style.color = "#666";
+
+            if (dataRecorder) dataRecorder.stop();
+            if (screenCaptureStream) screenCaptureStream.getTracks().forEach(t => t.stop());
+            if (streamingSocket) streamingSocket.close();
+
+            if (currentSessionId) {
+                // 5. Notify the server endpoint to clean up the backend FFmpeg session
+                await fetch(`${HTTP_BASE}/api/publisher/stop-streaming/${currentSessionId}`, { method: "POST" });
+            }
+
+            document.getElementById("status").innerText = "Status: Offline / Idle";
+            document.getElementById("startBtn").disabled = false;
+            document.getElementById("stopBtn").disabled = true;
+        }
+    </script>
+</body>
+</html>

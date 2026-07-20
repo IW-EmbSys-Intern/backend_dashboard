@@ -2,8 +2,7 @@
 import asyncio
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import StreamingResponse
-from app.core.camera_manager import camera_manager
-
+from app.core.player.camera_manager import camera_manager
 router = APIRouter()
 
 

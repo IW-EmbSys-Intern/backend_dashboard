@@ -1,8 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.core.camera_manager import camera_manager
-
+from app.core.player.camera_manager import camera_manager
 router = APIRouter()
 
 manager = camera_manager

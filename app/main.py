@@ -1,12 +1,16 @@
 import os
 import logging
 from contextlib import asynccontextmanager
+
+from app.core.publisher.encoder_receiver import EncoderReceiver
 from fastapi import FastAPI
 
 from app.api.cameras import router
-from app.api import caster
 from app.api.stream import router as stream_router
-from app.api.recordings import router as recording_router
+# from app.api.recordings import router as recording_router
+from fastapi.responses import HTMLResponse
+from pathlib import Path
+from app.api.publisher import router as publisher_router
 
 logger = logging.getLogger(__name__)
 
@@ -22,26 +26,30 @@ os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
     "flags;low_delay"
 )
 
+# Initialize TCP connection structure global tracking references
+receiver = EncoderReceiver(host="0.0.0.0", port=4000)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Indoplayer Engine initializing core components...")
+    # Boot the critical asynchronous backend background listeners on system boot
+    receiver.start()
     yield
-    logger.info("Application shutdown signal caught. Flushing publisher resources...")
-    try:
-        caster.manager.shutdown()
-        logger.info("Global clean shutdown completed.")
-    except Exception as e:
-        logger.exception("Error executing clean manager teardown sequence: %s", e)
+    # Safely wind down listening endpoints on shutdown
+    receiver.stop()
 
 app = FastAPI(
-    title="Indoplayer Camera Service",
+    title="Indoplayer + Indocaster Integrated Streaming Platform",
     lifespan=lifespan
 )
+# app = FastAPI(
+#     title="Indoplayer Camera Service",
+# )
+
 
 app.include_router(router, prefix="/cameras")
 app.include_router(stream_router)
-app.include_router(recording_router)
-app.include_router(caster.router)
+# app.include_router(recording_router)
+app.include_router(publisher_router, prefix="/api/publisher", tags=["Publisher"])
 
 @app.get("/")
 def home():
@@ -49,3 +57,10 @@ def home():
         "service": "camera-service",
         "status": "running"
     }
+@app.get("/test-caster", response_class=HTMLResponse)
+async def get_test_page():
+    # Read the file right from your templates file system location
+    html_path = Path("templates/test_caster.html")
+    if html_path.exists():
+        return html_path.read_text()
+    return "<h1>Template test_caster.html not found inside templates directory</h1>"
