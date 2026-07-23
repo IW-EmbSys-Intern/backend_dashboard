@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 from app.api.cameras import router
 from app.api.stream import router as stream_router
-# from app.api.recordings import router as recording_router
+from app.api.recorder import router as recorder_router
 from fastapi.responses import HTMLResponse
 from pathlib import Path
 from app.api.publisher import router as publisher_router
@@ -41,14 +41,10 @@ app = FastAPI(
     title="Indoplayer + Indocaster Integrated Streaming Platform",
     lifespan=lifespan
 )
-# app = FastAPI(
-#     title="Indoplayer Camera Service",
-# )
-
 
 app.include_router(router, prefix="/cameras")
 app.include_router(stream_router)
-# app.include_router(recording_router)
+app.include_router( recorder_router,prefix="/api",tags=["Recorder"])
 app.include_router(publisher_router, prefix="/api/publisher", tags=["Publisher"])
 
 @app.get("/")

@@ -70,7 +70,9 @@ class EncoderReceiver:
             target_rtsp_url = target_rtsp_url.strip()
 
             logger.info(f"Stream registration accepted. Key: {stream_key} -> Target: {target_rtsp_url}")
-
+            logger.info(
+                f"ACTIVE WORKERS: {publisher_manager.workers.keys()}"
+            )
             # Ingest target parameters right into our active session registry mapping pipelines
             worker = publisher_manager.get_or_create_worker(stream_key, session_id, target_rtsp_url)
 

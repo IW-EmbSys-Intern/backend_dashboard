@@ -3,7 +3,6 @@ import threading
 import logging
 from typing import Dict, Optional
 from app.core.publisher.publisher_worker import PublisherWorker
-# from app.core.publisher.recording_worker import PublisherRecordingWorker
 from app.core.publisher.rtsp_publisher import RtspPublisher
 
 logger = logging.getLogger(__name__)
@@ -13,7 +12,6 @@ class PublisherManager:
     def __init__(self):
         self.lock = threading.Lock()
         self.workers: Dict[str, PublisherWorker] = {}
-        # self.active_recordings: Dict[str, PublisherRecordingWorker] = {}
         self.active_rtsp_publishers: Dict[str, RtspPublisher] = {}
 
     def get_or_create_worker(self, stream_key: str, session_id: str, target_rtsp_url: str) -> PublisherWorker:
@@ -44,11 +42,6 @@ class PublisherManager:
             if stream_key in self.active_recordings:
                 return True
 
-            # recorder = PublisherRecordingWorker(stream_key=stream_key)
-            # recorder.start()
-
-            # self.active_recordings[stream_key] = recorder
-            # worker.add_consumer(recorder)
             return True
 
     def stop_stream_recording(self, stream_key: str) -> Optional[object]:
